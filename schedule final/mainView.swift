@@ -51,7 +51,7 @@ struct MainScheduleView: View {
 
             // Tab bar with Day, Week, Month, Year
             HStack {
-                ForEach(["new", "Week", "Month", "Year"], id: \.self) { label in
+                ForEach(["hello", "Week", "Month", "Year"], id: \.self) { label in
                     Button(label) {
                         // Handle tab switch
                     }
