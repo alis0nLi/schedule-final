@@ -49,19 +49,14 @@ struct MainScheduleView: View {
             }
             .padding(.horizontal)
 
-            // Tab bar with Day, Week, Month, Year
-            HStack {
-                ForEach(["hello", "Week", "Month", "Year"], id: \.self) { label in
-                    Button(label) {
-                        // Handle tab switch
-                    }
+            // Day Button
+            NavigationLink(destination: DayButtonView()) {
+                Text("Day")
                     .font(.system(size: 30))
-                    
                     .padding(.horizontal, 60)
                     .padding(.vertical, 30)
                     .background(Color.blue.opacity(0.2))
                     .cornerRadius(12)
-                }
             }
 
             Divider()
@@ -98,6 +93,16 @@ struct MainScheduleView: View {
     }
 }
 
+struct DayButtonView: View {
+    var body: some View {
+        VStack(spacing :10){
+            Text("Testing...")
+            
+        }
+        .navigationTitle("Day View")
+        
+    }
+}
 #Preview {
     MainScheduleView()
 }
