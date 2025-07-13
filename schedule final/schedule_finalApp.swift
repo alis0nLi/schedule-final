@@ -11,7 +11,9 @@ import SwiftUI
 struct schedule_finalApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            NavigationStack {
+                MainScheduleView()
+            }
         }
     }
 }

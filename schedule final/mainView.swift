@@ -48,33 +48,43 @@ struct MainScheduleView: View {
                 }
             }
             .padding(.horizontal)
+            
+            TabView{
+                // stuff in tab 1
+                VStack(alignment: .leading) {
+                    HStack {
+                        Text("8:45 am")
+                    }
+                    .padding(.top, 30)
 
-            // Day Button
-            NavigationLink(destination: DayButtonView()) {
-                Text("Day")
-                    .font(.system(size: 30))
-                    .padding(.horizontal, 60)
-                    .padding(.vertical, 30)
-                    .background(Color.blue.opacity(0.2))
-                    .cornerRadius(12)
-            }
+                    Spacer()
 
-            Divider()
-
-            // Timeline view from 8:45 am to 9:00 pm
-            VStack(alignment: .leading) {
-                HStack {
-                    Text("8:45 am")
+                    HStack {
+                        Text("9:00 pm")
+                    }
+                    .padding(.bottom, 30)
                 }
-                .padding(.top, 30)
-
-                Spacer()
-
-                HStack {
-                    Text("9:00 pm")
-                }
-                .padding(.bottom, 30)
+                
+                //tab 1 title
+                    .tabItem{
+                        Text("Day")
+                        
+                        
+                    }
+                
+                Text("Week")
+                    .tabItem{
+                        Text("Week")
+                    }
+                
+                Text("Month")
+                    .tabItem{
+                        Text("Month")
+                    }
+                        
+                
             }
+            
             .frame(maxHeight: .infinity)
             .padding(.horizontal, 24)
         }
@@ -93,16 +103,8 @@ struct MainScheduleView: View {
     }
 }
 
-struct DayButtonView: View {
-    var body: some View {
-        VStack(spacing :10){
-            Text("Testing...")
-            
-        }
-        .navigationTitle("Day View")
-        
-    }
-}
+
 #Preview {
     MainScheduleView()
+    
 }
