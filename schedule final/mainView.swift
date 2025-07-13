@@ -49,42 +49,35 @@ struct MainScheduleView: View {
             }
             .padding(.horizontal)
             
-            TabView{
-                // stuff in tab 1
-                VStack(alignment: .leading) {
-                    HStack {
-                        Text("8:45 am")
-                    }
-                    .padding(.top, 30)
 
-                    Spacer()
+           //Day button
+            Button("Day") {
+                
+                print("clicked")
+            }.font(.title)
+                .font(.system(size: 50))
+                .fontWeight(.bold)
+                .padding(.horizontal, 60)
+                .padding(.vertical, 30)
+                .background(Color.blue.opacity(0.2))
+                .cornerRadius(12)
 
-                    HStack {
-                        Text("9:00 pm")
-                    }
-                    .padding(.bottom, 30)
+            Divider()
+
+            // Timeline view from 8:45 am to 9:00 pm
+            VStack(alignment: .leading) {
+                HStack {
+                    Text("8:45 am")
                 }
-                
-                //tab 1 title
-                    .tabItem{
-                        Text("Day")
-                        
-                        
-                    }
-                
-                Text("Week")
-                    .tabItem{
-                        Text("Week")
-                    }
-                
-                Text("Month")
-                    .tabItem{
-                        Text("Month")
-                    }
-                        
-                
+                .padding(.top, 30)
+
+                Spacer()
+
+                HStack {
+                    Text("9:00 pm")
+                }
+                .padding(.bottom, 30)
             }
-            
             .frame(maxHeight: .infinity)
             .padding(.horizontal, 24)
         }
