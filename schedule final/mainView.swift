@@ -29,13 +29,15 @@ struct MainScheduleView: View {
                     Spacer()
                     
                     Text(getTimeString(from: currentTime))
-                        .font(.title)
-                        .font(.system(size: 50))
+                        .font(.system(size: 45))
                         .fontWeight(.bold)
                         .padding(.horizontal, 50)
                         .padding(.vertical, 40)
-                        .background(Color.blue.opacity(0.2))
                         .cornerRadius(12)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.blue, lineWidth: 5)
+                        )
                     
                     Spacer()
                     
@@ -92,9 +94,10 @@ struct MainScheduleView: View {
             }) {
                 Text(title)
                     .font(.system(size: 30, weight: .bold))
+                    .foregroundColor(selectedView == title ? Color.white : Color.black)
                     .padding(.horizontal, 60)
                     .padding(.vertical, 30)
-                    .background(selectedView == title ? Color.blue.opacity(0.5) : Color.blue.opacity(0.2))
+                    .background(selectedView == title ? Color.blue : Color.blue.opacity(0.2))
                     .cornerRadius(12)
             }
         }
@@ -113,19 +116,72 @@ struct DayView: View {
     var body: some View {
         VStack(alignment: .leading) {
             Text("8:45 am")
+                .font(.system(size: 36, weight: .bold, design: .default))
             Spacer()
             Text("9:00 pm")
+                .font(.system(size: 36, weight: .bold, design: .default))
         }
         .padding()
     }
 }
 
 struct WeekView: View {
+    let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+
     var body: some View {
-        Text("Week View")
-            .font(.largeTitle)
+        ScrollView(.horizontal, showsIndicators: true) {
+            HStack(spacing: 20) {
+                ForEach(days, id: \.self) { day in
+                    DayScheduleView(day: day)
+                        .frame(width: 400) // Width of each day's column
+                        .background(Color.white)
+                        .cornerRadius(12)
+                        .shadow(radius: 3)
+                        .padding(.vertical)
+                }
+            }
+            .padding(.horizontal)
+        }
     }
 }
+
+struct DayScheduleView: View {
+    let day: String
+
+    var body: some View {
+        VStack(spacing: 10) {
+            Text(day)
+                .font(.system(size:40, weight: .bold))
+                .padding(.top, 10)
+
+            Divider()
+
+            // Example timeline events
+            VStack(alignment: .leading, spacing: 20) {
+                ForEach(sampleEvents(for: day), id: \.self) { event in
+                    Text(event)
+                        .font(.subheadline)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.blue.opacity(0.2))
+                        .cornerRadius(8)
+                }
+            }
+            .padding(.horizontal, 10)
+
+            Spacer()
+        }
+        .frame(maxHeight: .infinity)
+    }
+
+    // Sample events (just for demo)
+    func sampleEvents(for day: String) -> [String] {
+        return [
+            "will co-ordinate with user's entered events"
+        ]
+    }
+}
+
 
 struct MonthView: View {
     var body: some View {
@@ -143,7 +199,9 @@ struct YearView: View {
 
 
 
-#Preview {
-    MainScheduleView()
-    
+struct MainScheduleView_Previews: PreviewProvider {
+    static var previews: some View {
+        MainScheduleView()
+    }
 }
+

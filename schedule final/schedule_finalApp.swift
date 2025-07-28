@@ -8,7 +8,7 @@
 import SwiftUI
 
 @main
-struct schedule_finalApp: App {
+struct ScheduleFinalApp: App {
     var body: some Scene {
         WindowGroup {
             NavigationStack {
