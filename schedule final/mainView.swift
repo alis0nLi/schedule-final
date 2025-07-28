@@ -50,19 +50,45 @@ struct MainScheduleView: View {
             .padding(.horizontal)
             
 
-           //Day button
-            Button("Day") {
-                
-                print("clicked")
-            }.font(.title)
-                .font(.system(size: 50))
-                .fontWeight(.bold)
+            // buttons
+            HStack(spacing: 20) {  // Adjust spacing as needed
+                Button("Day") {
+                    print("Day clicked")
+                }
+                .font(.system(size: 30))
                 .padding(.horizontal, 60)
                 .padding(.vertical, 30)
                 .background(Color.blue.opacity(0.2))
                 .cornerRadius(12)
 
-            Divider()
+                Button("Week") {
+                    print("Week clicked")
+                }
+                .font(.system(size: 30))
+                .padding(.horizontal, 60)
+                .padding(.vertical, 30)
+                .background(Color.blue.opacity(0.2))
+                .cornerRadius(12)
+                
+                Button("Month") {
+                    print("Month clicked")
+                }
+                .font(.system(size: 30))
+                .padding(.horizontal, 60)
+                .padding(.vertical, 30)
+                .background(Color.blue.opacity(0.2))
+                .cornerRadius(12)
+                
+                Button("Year") {
+                    print("Year clicked")
+                }
+                .font(.system(size: 30))
+                .padding(.horizontal, 60)
+                .padding(.vertical, 30)
+                .background(Color.blue.opacity(0.2))
+                .cornerRadius(12)
+            }
+
 
             // Timeline view from 8:45 am to 9:00 pm
             VStack(alignment: .leading) {
