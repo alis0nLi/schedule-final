@@ -13,7 +13,7 @@ struct MainScheduleView: View {
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
     
     @State private var selectedView: ScheduleViewType = .day
-    @State private var showingAddItem = false
+    @State private var showingAddMode = false
     @State private var showingSettings = false
     
     var body: some View {
@@ -46,9 +46,9 @@ struct MainScheduleView: View {
                     
                     Spacer()
                     
-                    // Plus button → Add Item page
-                    Button(action: { showingAddItem = true }) {
-                        Image(systemName: "plus")
+                    // Plus / X button
+                    Button(action: { showingAddMode.toggle() }) {
+                        Image(systemName: showingAddMode ? "xmark" : "plus")
                             .padding(.horizontal, 50)
                             .padding(.vertical, 40)
                             .background(Color.blue.opacity(0.2))
@@ -69,10 +69,14 @@ struct MainScheduleView: View {
                 // Display selected view
                 Group {
                     switch selectedView {
-                    case .day: DayView()
-                    case .week: WeekView()
-                    case .month: MonthView()
-                    case .year: YearView()
+                    case .day:
+                        DayView(showingAddMode: $showingAddMode)
+                    case .week:
+                        WeekView()
+                    case .month:
+                        MonthView()
+                    case .year:
+                        YearView()
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -80,9 +84,6 @@ struct MainScheduleView: View {
             }
             .onReceive(timer) { input in
                 currentTime = input
-            }
-            .navigationDestination(isPresented: $showingAddItem) {
-                AddItemView()
             }
             .navigationDestination(isPresented: $showingSettings) {
                 SettingsView()
@@ -125,13 +126,88 @@ enum ScheduleViewType: String, CaseIterable {
 
 // MARK: - Day View
 struct DayView: View {
+    @Binding var showingAddMode: Bool
+    @State private var events: [String: (icon: String, title: String)] = [:] // time: icon+title
+    @State private var selectedIcon: (icon: String, title: String)? = nil
+    
+    let times = ["8:00 am", "9:00 am", "10:00 am", "11:00 am", "12:00 pm",
+                 "1:00 pm", "2:00 pm", "3:00 pm", "4:00 pm", "5:00 pm"]
+    
     var body: some View {
-        VStack(alignment: .leading) {
-            Text("8:45 am")
-                .font(.system(size: 36, weight: .bold))
+        HStack {
+            // Day schedule
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    ForEach(times, id: \.self) { time in
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(time).font(.headline)
+                            HStack {
+                                if let event = events[time] {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(event.icon).font(.largeTitle)
+                                        Text(event.title).font(.subheadline)
+                                    }
+                                }
+                            }
+                            .frame(height: 60)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                            .onTapGesture {
+                                if showingAddMode, let selected = selectedIcon, events[time] == nil {
+                                    events[time] = selected
+                                    selectedIcon = nil
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding()
+            }
+            
+            // Icon palette only in add mode
+            if showingAddMode {
+                Divider()
+                IconPaletteClickView(selectedIcon: $selectedIcon)
+                    .frame(width: 200)
+                    .background(Color.gray.opacity(0.1))
+            }
+        }
+    }
+}
+
+// MARK: - Icon Palette
+struct IconPaletteClickView: View {
+    @Binding var selectedIcon: (icon: String, title: String)?
+    
+    let icons: [(String, String)] = [
+        ("🍎", "Breakfast"),
+        ("🎒", "School"),
+        ("⚽️", "Play"),
+        ("🛏️", "Bedtime"),
+        ("📚", "Study"),
+        ("🎨", "Art")
+    ]
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Text("Activities").font(.title2).bold()
+            ForEach(icons, id: \.0) { item in
+                let isSelected = selectedIcon?.icon == item.0
+                Button(action: { selectedIcon = item }) {
+                    VStack {
+                        Text(item.0).font(.system(size: 50))
+                        Text(item.1).font(.headline)
+                    }
+                    .padding()
+                    .frame(maxWidth: .infinity)
+                    .background(isSelected ? Color.blue : Color.white)
+                    .foregroundColor(isSelected ? Color.white : Color.black)
+                    .cornerRadius(12)
+                    .shadow(radius: 2)
+                }
+            }
             Spacer()
-            Text("9:00 pm")
-                .font(.system(size: 36, weight: .bold))
         }
         .padding()
     }
@@ -323,58 +399,6 @@ struct YearView: View {
     var body: some View {
         Text("Year View")
             .font(.largeTitle)
-    }
-}
-
-// MARK: - Add Item View
-struct AddItemView: View {
-    @Environment(\.dismiss) private var dismiss
-    
-    var body: some View {
-        VStack {
-            HStack {
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 40, weight: .bold))
-                        .padding(.horizontal, 50)
-                        .padding(.vertical, 40)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(12)
-                }
-            }
-            .padding(.horizontal)
-            
-            Spacer()
-            
-            Text("Add Items")
-                .font(.system(size: 40, weight: .bold))
-            
-            // Example item
-            HStack {
-                Image(systemName: "alarm.fill") // Icon
-                    .font(.system(size: 28))
-                    .foregroundColor(.orange)
-                    .padding(.trailing, 10)
-                Text("Wake Up")
-                    .font(.title2).bold()
-                Spacer()
-                Button(action: {}) {
-                    Image(systemName: "plus")
-                        .font(.system(size: 24, weight: .bold))
-                        .padding(.horizontal, 20)
-                        .padding(.vertical, 10)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(8)
-                }
-            }
-            .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-        .navigationBarBackButtonHidden(true)
     }
 }
 
