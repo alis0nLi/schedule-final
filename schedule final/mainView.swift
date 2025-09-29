@@ -15,6 +15,11 @@ struct MainScheduleView: View {
     @State private var selectedView: ScheduleViewType = .day
     @State private var showingAddMode = false
     @State private var showingSettings = false
+    @State private var showingAddBigEventPage = false
+    
+    // Shared events across views (per date)
+    @State private var events: [Date: [String: (icon: String, title: String)]] = [:]
+    @State private var upcomingEvents: [(date: Date, icon: String, title: String)] = []
     
     var body: some View {
         NavigationStack {
@@ -47,13 +52,20 @@ struct MainScheduleView: View {
                     Spacer()
                     
                     // Plus / X button
-                    Button(action: { showingAddMode.toggle() }) {
-                        Image(systemName: showingAddMode ? "xmark" : "plus")
+                    Button(action: {
+                        if selectedView == .day {
+                            showingAddMode.toggle()
+                        } else if selectedView == .events {
+                            showingAddBigEventPage = true
+                        }
+                    }) {
+                        Image(systemName: showingAddMode && selectedView == .day ? "xmark" : "plus")
                             .padding(.horizontal, 50)
                             .padding(.vertical, 40)
                             .background(Color.blue.opacity(0.2))
                             .cornerRadius(12)
                     }
+                    .disabled(selectedView == .week || selectedView == .month)
                 }
                 .padding(.horizontal)
                 
@@ -70,13 +82,15 @@ struct MainScheduleView: View {
                 Group {
                     switch selectedView {
                     case .day:
-                        DayView(showingAddMode: $showingAddMode)
+                        DayView(showingAddMode: $showingAddMode,
+                                events: $events,
+                                upcomingEvents: $upcomingEvents)
                     case .week:
-                        WeekView()
+                        WeekView(events: $events, upcomingEvents: $upcomingEvents)
                     case .month:
-                        MonthView()
-                    case .year:
-                        YearView()
+                        MonthView(events: $events)
+                    case .events:
+                        EventsFullPageView(upcomingEvents: $upcomingEvents)
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -85,8 +99,12 @@ struct MainScheduleView: View {
             .onReceive(timer) { input in
                 currentTime = input
             }
+            // Pushes full screen pages
             .navigationDestination(isPresented: $showingSettings) {
                 SettingsView()
+            }
+            .navigationDestination(isPresented: $showingAddBigEventPage) {
+                AddBigEventView()
             }
         }
     }
@@ -95,10 +113,10 @@ struct MainScheduleView: View {
     private func viewSwitchButton(_ type: ScheduleViewType) -> some View {
         Button(action: { selectedView = type }) {
             Text(type.rawValue)
-                .font(.system(size: 30, weight: .bold))
+                .font(.system(size: 27, weight: .bold))
                 .foregroundColor(selectedView == type ? Color.white : Color.black)
-                .padding(.horizontal, 60)
-                .padding(.vertical, 30)
+                .padding(.horizontal, 50)
+                .padding(.vertical, 25)
                 .background(selectedView == type ? Color.blue : Color.blue.opacity(0.2))
                 .cornerRadius(12)
         }
@@ -121,138 +139,241 @@ enum ScheduleViewType: String, CaseIterable {
     case day = "Day"
     case week = "Week"
     case month = "Month"
-    case year = "Year"
+    case events = "Events"
 }
 
 // MARK: - Day View
 struct DayView: View {
     @Binding var showingAddMode: Bool
-    @State private var events: [String: (icon: String, title: String)] = [:] // time: icon+title
+    @Binding var events: [Date: [String: (icon: String, title: String)]]
+    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
+    
     @State private var selectedIcon: (icon: String, title: String)? = nil
+    @State private var currentDate: Date = Date()
     
     let times = ["8:00 am", "9:00 am", "10:00 am", "11:00 am", "12:00 pm",
                  "1:00 pm", "2:00 pm", "3:00 pm", "4:00 pm", "5:00 pm"]
     
+    private let calendar = Calendar.current
+    private let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "EEEE, MMM d"
+        return df
+    }()
+    
+    var dateLabel: String {
+        if calendar.isDateInToday(currentDate) {
+            return "Today, " + dateFormatter.string(from: currentDate)
+        } else if calendar.isDateInTomorrow(currentDate) {
+            return "Tomorrow, " + dateFormatter.string(from: currentDate)
+        } else {
+            return dateFormatter.string(from: currentDate)
+        }
+    }
+    
     var body: some View {
-        HStack {
-            // Day schedule
-            ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
-                    ForEach(times, id: \.self) { time in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(time).font(.headline)
-                            HStack {
-                                if let event = events[time] {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(event.icon).font(.largeTitle)
-                                        Text(event.title).font(.subheadline)
+        VStack {
+            // Date navigation
+            HStack {
+                Button(action: { changeDay(by: -1) }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 28, weight: .bold))
+                        .padding(10)
+                }
+                Spacer()
+                Text(dateLabel)
+                    .font(.system(size: 32, weight: .bold))
+                Spacer()
+                Button(action: { changeDay(by: 1) }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 28, weight: .bold))
+                        .padding(10)
+                }
+            }
+            .padding(.bottom, 10)
+            
+            HStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        ForEach(times, id: \.self) { time in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text(time).font(.headline)
+                                HStack {
+                                    if let dayEvents = events[startOfDay(for: currentDate)],
+                                       let event = dayEvents[time] {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text(event.icon).font(.largeTitle)
+                                            Text(event.title).font(.subheadline)
+                                        }
                                     }
                                 }
-                            }
-                            .frame(height: 60)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.blue.opacity(0.1))
-                            .cornerRadius(8)
-                            .onTapGesture {
-                                if showingAddMode, let selected = selectedIcon, events[time] == nil {
-                                    events[time] = selected
-                                    selectedIcon = nil
+                                .frame(height: 60)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color.blue.opacity(0.1))
+                                .cornerRadius(8)
+                                .onTapGesture {
+                                    if showingAddMode, let selected = selectedIcon {
+                                        var dayEvents = events[startOfDay(for: currentDate)] ?? [:]
+                                        if dayEvents[time] == nil {
+                                            dayEvents[time] = selected
+                                            events[startOfDay(for: currentDate)] = dayEvents
+                                            
+                                            // Save into upcomingEvents
+                                            var eventDate = currentDate
+                                            if let hour = Int(time.components(separatedBy: ":")[0]) {
+                                                let isPM = time.contains("pm") && hour != 12
+                                                let finalHour = isPM ? hour + 12 : (hour == 12 && time.contains("am") ? 0 : hour)
+                                                eventDate = calendar.date(bySettingHour: finalHour, minute: 0, second: 0, of: currentDate) ?? currentDate
+                                            }
+                                            upcomingEvents.append((date: eventDate, icon: selected.icon, title: selected.title))
+                                            upcomingEvents.sort { $0.date < $1.date }
+                                        }
+                                        selectedIcon = nil
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding()
                 }
-                .padding()
-            }
-            
-            // Icon palette only in add mode
-            if showingAddMode {
-                Divider()
-                IconPaletteClickView(selectedIcon: $selectedIcon)
-                    .frame(width: 200)
-                    .background(Color.gray.opacity(0.1))
+                
+                if showingAddMode {
+                    Divider()
+                    IconPaletteClickView(selectedIcon: $selectedIcon)
+                        .frame(width: 200)
+                        .background(Color.gray.opacity(0.1))
+                }
             }
         }
     }
-}
-
-// MARK: - Icon Palette
-struct IconPaletteClickView: View {
-    @Binding var selectedIcon: (icon: String, title: String)?
     
-    let icons: [(String, String)] = [
-        ("🍎", "Breakfast"),
-        ("🎒", "School"),
-        ("⚽️", "Play"),
-        ("🛏️", "Bedtime"),
-        ("📚", "Study"),
-        ("🎨", "Art")
-    ]
+    private func changeDay(by value: Int) {
+        currentDate = calendar.date(byAdding: .day, value: value, to: currentDate) ?? currentDate
+    }
     
-    var body: some View {
-        VStack(spacing: 20) {
-            Text("Activities").font(.title2).bold()
-            ForEach(icons, id: \.0) { item in
-                let isSelected = selectedIcon?.icon == item.0
-                Button(action: { selectedIcon = item }) {
-                    VStack {
-                        Text(item.0).font(.system(size: 50))
-                        Text(item.1).font(.headline)
-                    }
-                    .padding()
-                    .frame(maxWidth: .infinity)
-                    .background(isSelected ? Color.blue : Color.white)
-                    .foregroundColor(isSelected ? Color.white : Color.black)
-                    .cornerRadius(12)
-                    .shadow(radius: 2)
-                }
-            }
-            Spacer()
-        }
-        .padding()
+    private func startOfDay(for date: Date) -> Date {
+        calendar.startOfDay(for: date)
     }
 }
 
 // MARK: - Week View
 struct WeekView: View {
-    let days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    @Binding var events: [Date: [String: (icon: String, title: String)]]
+    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
+    
+    @State private var currentWeekStart: Date = Calendar.current.startOfDay(for: Date())
+    private let calendar = Calendar.current
+    private let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "EEE d"
+        return df
+    }()
+    
+    private var weekDates: [Date] {
+        var startOfWeek: Date = currentWeekStart
+        var week: [Date] = []
+        for i in 0..<7 {
+            if let date = calendar.date(byAdding: .day, value: i, to: startOfWeek) {
+                week.append(date)
+            }
+        }
+        return week
+    }
     
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: true) {
-            HStack(spacing: 20) {
-                ForEach(days, id: \.self) { day in
-                    DayScheduleView(day: day)
-                        .frame(width: 400)
-                        .background(Color.white)
-                        .cornerRadius(12)
-                        .shadow(radius: 3)
-                        .padding(.vertical)
+        VStack {
+            // Week navigation
+            HStack {
+                Button(action: { changeWeek(by: -1) }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 28, weight: .bold))
+                        .padding(10)
+                }
+                Spacer()
+                Text("Week of \(dateFormatter.string(from: weekDates.first ?? Date()))")
+                    .font(.system(size: 28, weight: .bold))
+                Spacer()
+                Button(action: { changeWeek(by: 1) }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 28, weight: .bold))
+                        .padding(10)
                 }
             }
-            .padding(.horizontal)
+            .padding(.bottom, 10)
+            
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(spacing: 20) {
+                    ForEach(weekDates, id: \.self) { date in
+                        DayScheduleView(dayDate: date,
+                                        events: $events,
+                                        upcomingEvents: $upcomingEvents)
+                            .frame(width: 400)
+                            .background(Color.white)
+                            .cornerRadius(12)
+                            .shadow(radius: 3)
+                            .padding(.vertical)
+                    }
+                }
+                .padding(.horizontal)
+            }
         }
+        .onAppear {
+            currentWeekStart = startOfWeek(for: Date())
+        }
+    }
+    
+    private func changeWeek(by value: Int) {
+        currentWeekStart = calendar.date(byAdding: .weekOfYear, value: value, to: currentWeekStart) ?? currentWeekStart
+    }
+    
+    private func startOfWeek(for date: Date) -> Date {
+        let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
+        return calendar.date(from: comps) ?? date
     }
 }
 
+// MARK: - Day Schedule View for Week
 struct DayScheduleView: View {
-    let day: String
+    let dayDate: Date
+    @Binding var events: [Date: [String: (icon: String, title: String)]]
+    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
+    
+    private let calendar = Calendar.current
+    private let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "EEEE, MMM d"
+        return df
+    }()
+    
+    let times = ["8:00 am", "9:00 am", "10:00 am", "11:00 am", "12:00 pm",
+                 "1:00 pm", "2:00 pm", "3:00 pm", "4:00 pm", "5:00 pm"]
     
     var body: some View {
         VStack(spacing: 10) {
-            Text(day)
-                .font(.system(size: 40, weight: .bold))
+            Text(dateLabel)
+                .font(.system(size: 28, weight: .bold))
                 .padding(.top, 10)
             
             Divider()
             
-            VStack(alignment: .leading, spacing: 20) {
-                ForEach(sampleEvents(for: day), id: \.self) { event in
-                    Text(event)
-                        .font(.subheadline)
-                        .padding(8)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(8)
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(times, id: \.self) { time in
+                    HStack {
+                        if let dayEvents = events[startOfDay(for: dayDate)],
+                           let event = dayEvents[time] {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(event.icon).font(.largeTitle)
+                                Text(event.title).font(.subheadline)
+                            }
+                        } else {
+                            Text(time).font(.subheadline).foregroundColor(.gray)
+                        }
+                        Spacer()
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
                 }
             }
             .padding(.horizontal, 10)
@@ -262,8 +383,18 @@ struct DayScheduleView: View {
         .frame(maxHeight: .infinity)
     }
     
-    func sampleEvents(for day: String) -> [String] {
-        ["will co-ordinate with user's entered events"]
+    var dateLabel: String {
+        if calendar.isDateInToday(dayDate) {
+            return "Today, " + dateFormatter.string(from: dayDate)
+        } else if calendar.isDateInTomorrow(dayDate) {
+            return "Tomorrow, " + dateFormatter.string(from: dayDate)
+        } else {
+            return dateFormatter.string(from: dayDate)
+        }
+    }
+    
+    private func startOfDay(for date: Date) -> Date {
+        calendar.startOfDay(for: date)
     }
 }
 
@@ -271,6 +402,7 @@ struct DayScheduleView: View {
 struct MonthView: View {
     @State private var selectedDate: Date? = nil
     @State private var currentMonth: Date = Date()
+    @Binding var events: [Date: [String: (icon: String, title: String)]]
     
     private let calendar = Calendar.current
     private let dateFormatter = DateFormatter()
@@ -294,7 +426,6 @@ struct MonthView: View {
     
     var body: some View {
         VStack(spacing: 10) {
-            
             // Month navigation
             HStack {
                 Button(action: { changeMonth(by: -1) }) {
@@ -325,7 +456,7 @@ struct MonthView: View {
                 }
             }
             
-            // Calendar grid fills available vertical space
+            // Calendar grid
             GeometryReader { geo in
                 let totalRows = ((daysInMonth.count + startingWeekdayOffset) / 7) + 1
                 let cellHeight = geo.size.height / CGFloat(totalRows)
@@ -340,95 +471,139 @@ struct MonthView: View {
                     ForEach(daysInMonth, id: \.self) { day in
                         let isSelected = selectedDate == day
                         let isToday = calendar.isDateInToday(day)
-                        Text("\(calendar.component(.day, from: day))")
-                            .font(.system(size: 30, weight: .bold))
-                            .frame(maxWidth: .infinity)
-                            .frame(height: cellHeight)
-                            .background(
-                                isSelected ? Color.blue :
-                                    (isToday ? Color.blue.opacity(0.3) : Color.clear)
-                            )
-                            .foregroundColor(isSelected ? .white : .primary)
-                            .overlay(Rectangle().stroke(Color.gray, lineWidth: 1))
-                            .onTapGesture { selectedDate = day }
+                        VStack {
+                            Text("\(calendar.component(.day, from: day))")
+                                .font(.system(size: 30, weight: .bold))
+                                .frame(maxWidth: .infinity)
+                                .frame(height: cellHeight)
+                                .background(
+                                    isSelected ? Color.blue :
+                                        (isToday ? Color.gray.opacity(0.2) : Color.clear)
+                                )
+                                .cornerRadius(12)
+                        }
+                        .overlay(Rectangle().stroke(Color.gray, lineWidth: 1))
+                        .onTapGesture {
+                            selectedDate = day
+                        }
                     }
                 }
-            }
-            .frame(maxHeight: .infinity)
-            
-            Divider().padding(.vertical, 5)
-            
-            if let selectedDate = selectedDate {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Events for \(dayString(from: selectedDate))")
-                        .font(.title2).bold()
-                    ForEach(sampleEvents(for: selectedDate), id: \.self) { event in
-                        Text("• \(event)")
-                            .font(.system(size: 20))
-                            .padding(8)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.blue.opacity(0.2))
-                            .cornerRadius(8)
-                    }
-                }
-                .padding(.top, 5)
             }
         }
         .padding(.horizontal)
     }
     
-    private func monthYearString(from date: Date) -> String {
-        dateFormatter.dateFormat = "MMMM yyyy"
-        return dateFormatter.string(from: date)
-    }
-    
-    private func dayString(from date: Date) -> String {
-        dateFormatter.dateFormat = "EEEE, MMM d"
-        return dateFormatter.string(from: date)
-    }
-    
-    private func sampleEvents(for date: Date) -> [String] { ["No events"] }
-    
     private func changeMonth(by value: Int) {
-        currentMonth = calendar.date(byAdding: .month, value: value, to: currentMonth) ?? Date()
+        currentMonth = calendar.date(byAdding: .month, value: value, to: currentMonth) ?? currentMonth
+    }
+    
+    private func monthYearString(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "LLLL yyyy"
+        return formatter.string(from: date)
     }
 }
 
-// MARK: - Year View
-struct YearView: View {
+// MARK: - Events Full Page
+struct EventsFullPageView: View {
+    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
+    
+    private let dateFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "EEE, MMM d h:mm a"
+        return df
+    }()
+    
     var body: some View {
-        Text("Year View")
-            .font(.largeTitle)
+        ScrollView {
+            VStack(spacing: 20) {
+                ForEach(upcomingEvents.indices, id: \.self) { idx in
+                    HStack {
+                        Text(upcomingEvents[idx].icon)
+                            .font(.largeTitle)
+                        VStack(alignment: .leading) {
+                            Text(upcomingEvents[idx].title)
+                                .font(.headline)
+                            Text(dateFormatter.string(from: upcomingEvents[idx].date))
+                                .font(.subheadline)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(12)
+                }
+            }
+            .padding()
+        }
+    }
+}
+
+// MARK: - Add Big Event View
+struct AddBigEventView: View {
+    var body: some View {
+        VStack {
+            Text("Add Big Event Page")
+                .font(.largeTitle)
+                .padding()
+            Spacer()
+        }
     }
 }
 
 // MARK: - Settings View
 struct SettingsView: View {
-    @Environment(\.dismiss) private var dismiss
+    @Environment(\.dismiss) var dismiss
     
     var body: some View {
         VStack {
-            HStack {
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 40, weight: .bold))
-                        .padding(.horizontal, 50)
-                        .padding(.vertical, 40)
-                        .background(Color.blue.opacity(0.2))
-                        .cornerRadius(12)
-                }
-            }
-            .padding(.horizontal)
+            Text("Settings")
+                .font(.largeTitle)
+                .padding()
             
             Spacer()
             
-            Text("Settings")
-                .font(.system(size: 40, weight: .bold))
+            Button("Exit") {
+                dismiss()
+            }
+            .font(.title2)
+            .padding()
+            .background(Color.blue.opacity(0.2))
+            .cornerRadius(12)
             
             Spacer()
         }
-        .navigationBarBackButtonHidden(true)
+    }
+}
+
+// MARK: - Icon Palette Click View
+struct IconPaletteClickView: View {
+    @Binding var selectedIcon: (icon: String, title: String)?
+    
+    let icons: [(String, String)] = [
+        ("🎓","School"),("📝","Study"),("🏃‍♂️","Exercise"),
+        ("🍎","Meal"),("💤","Sleep"),("🎉","Event")
+    ]
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            ForEach(icons, id: \.0) { icon, title in
+                Button(action: { selectedIcon = (icon, title) }) {
+                    HStack {
+                        Text(icon)
+                            .font(.largeTitle)
+                        Text(title)
+                            .font(.headline)
+                    }
+                    .padding()
+                    .background(Color.gray.opacity(0.2))
+                    .cornerRadius(8)
+                }
+            }
+            Spacer()
+        }
+        .padding()
     }
 }
 
