@@ -381,14 +381,13 @@ struct DayScheduleView: View {
     }
 }
 
-// MARK: - Month View
+// MARK: - Month View 
 struct MonthView: View {
     @State private var selectedDate: Date? = nil
     @State private var currentMonth: Date = Date()
     @Binding var events: [Date: [String: (icon: String, title: String)]]
     
     private let calendar = Calendar.current
-    private let dateFormatter = DateFormatter()
     
     private var daysInMonth: [Date] {
         guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth) else { return [] }
@@ -403,8 +402,14 @@ struct MonthView: View {
     
     private var startingWeekdayOffset: Int {
         let firstDay = daysInMonth.first ?? Date()
+        // Calendar.weekday: 1 = Sunday, 2 = Monday, etc.
         let weekday = calendar.component(.weekday, from: firstDay)
-        return (weekday - calendar.firstWeekday + 7) % 7
+        return weekday - 1 // offset from Sunday (0-based)
+    }
+    
+    private var weekdays: [String] {
+        let df = DateFormatter()
+        return df.shortWeekdaySymbols // ["Sun", "Mon", "Tue", ...]
     }
     
     var body: some View {
@@ -428,7 +433,6 @@ struct MonthView: View {
             }
             
             // Weekday headers
-            let weekdays = dateFormatter.shortWeekdaySymbols ?? ["S","M","T","W","T","F","S"]
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 0) {
                 ForEach(weekdays, id: \.self) { day in
                     Text(day)
@@ -441,16 +445,19 @@ struct MonthView: View {
             
             // Calendar grid
             GeometryReader { geo in
-                let totalRows = ((daysInMonth.count + startingWeekdayOffset) / 7) + 1
+                let totalRows = ((daysInMonth.count + startingWeekdayOffset - 1) / 7) + 1
                 let cellHeight = geo.size.height / CGFloat(totalRows)
                 
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 0) {
+                    // Empty slots before the first day
                     ForEach(0..<startingWeekdayOffset, id: \.self) { _ in
                         Rectangle()
                             .foregroundColor(.clear)
                             .frame(height: cellHeight)
                             .overlay(Rectangle().stroke(Color.gray, lineWidth: 1))
                     }
+                    
+                    // Days of the month
                     ForEach(daysInMonth, id: \.self) { day in
                         let isSelected = selectedDate == day
                         let isToday = calendar.isDateInToday(day)
@@ -486,6 +493,7 @@ struct MonthView: View {
         return formatter.string(from: date)
     }
 }
+
 
 // MARK: - Events Full Page
 struct EventsFullPageView: View {
@@ -607,3 +615,10 @@ struct IconPaletteClickView: View {
         }
     }
 }
+
+struct MainScheduleView_Previews: PreviewProvider {
+    static var previews: some View {
+        MainScheduleView()
+    }
+}
+
