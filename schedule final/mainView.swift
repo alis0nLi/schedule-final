@@ -17,9 +17,11 @@ struct MainScheduleView: View {
     @State private var showingSettings = false
     @State private var showingAddBigEventPage = false
     
-    // Shared events across views (per date)
+    // Shared events across views (day/week/month only)
     @State private var events: [Date: [String: (icon: String, title: String)]] = [:]
-    @State private var upcomingEvents: [(date: Date, icon: String, title: String)] = []
+    
+    // Special events for Events tab
+    @State private var specialEvents: [(date: Date, icon: String, title: String)] = []
     
     var body: some View {
         NavigationStack {
@@ -83,14 +85,13 @@ struct MainScheduleView: View {
                     switch selectedView {
                     case .day:
                         DayView(showingAddMode: $showingAddMode,
-                                events: $events,
-                                upcomingEvents: $upcomingEvents)
+                                events: $events)
                     case .week:
-                        WeekView(events: $events, upcomingEvents: $upcomingEvents)
+                        WeekView(events: $events)
                     case .month:
                         MonthView(events: $events)
                     case .events:
-                        EventsFullPageView(upcomingEvents: $upcomingEvents)
+                        EventsFullPageView(specialEvents: $specialEvents)
                     }
                 }
                 .frame(maxHeight: .infinity)
@@ -104,7 +105,7 @@ struct MainScheduleView: View {
                 SettingsView()
             }
             .navigationDestination(isPresented: $showingAddBigEventPage) {
-                AddBigEventView()
+                AddBigEventView(specialEvents: $specialEvents)
             }
         }
     }
@@ -146,7 +147,6 @@ enum ScheduleViewType: String, CaseIterable {
 struct DayView: View {
     @Binding var showingAddMode: Bool
     @Binding var events: [Date: [String: (icon: String, title: String)]]
-    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
     
     @State private var selectedIcon: (icon: String, title: String)? = nil
     @State private var currentDate: Date = Date()
@@ -217,16 +217,6 @@ struct DayView: View {
                                         if dayEvents[time] == nil {
                                             dayEvents[time] = selected
                                             events[startOfDay(for: currentDate)] = dayEvents
-                                            
-                                            // Save into upcomingEvents
-                                            var eventDate = currentDate
-                                            if let hour = Int(time.components(separatedBy: ":")[0]) {
-                                                let isPM = time.contains("pm") && hour != 12
-                                                let finalHour = isPM ? hour + 12 : (hour == 12 && time.contains("am") ? 0 : hour)
-                                                eventDate = calendar.date(bySettingHour: finalHour, minute: 0, second: 0, of: currentDate) ?? currentDate
-                                            }
-                                            upcomingEvents.append((date: eventDate, icon: selected.icon, title: selected.title))
-                                            upcomingEvents.sort { $0.date < $1.date }
                                         }
                                         selectedIcon = nil
                                     }
@@ -259,9 +249,13 @@ struct DayView: View {
 // MARK: - Week View
 struct WeekView: View {
     @Binding var events: [Date: [String: (icon: String, title: String)]]
-    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
     
-    @State private var currentWeekStart: Date = Calendar.current.startOfDay(for: Date())
+    @State private var currentWeekStart: Date = {
+        let today = Date()
+        let comps = Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today)
+        return Calendar.current.date(from: comps) ?? today
+    }()
+    
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -270,10 +264,9 @@ struct WeekView: View {
     }()
     
     private var weekDates: [Date] {
-        var startOfWeek: Date = currentWeekStart
         var week: [Date] = []
         for i in 0..<7 {
-            if let date = calendar.date(byAdding: .day, value: i, to: startOfWeek) {
+            if let date = calendar.date(byAdding: .day, value: i, to: currentWeekStart) {
                 week.append(date)
             }
         }
@@ -305,8 +298,7 @@ struct WeekView: View {
                 HStack(spacing: 20) {
                     ForEach(weekDates, id: \.self) { date in
                         DayScheduleView(dayDate: date,
-                                        events: $events,
-                                        upcomingEvents: $upcomingEvents)
+                                        events: $events)
                             .frame(width: 400)
                             .background(Color.white)
                             .cornerRadius(12)
@@ -317,18 +309,10 @@ struct WeekView: View {
                 .padding(.horizontal)
             }
         }
-        .onAppear {
-            currentWeekStart = startOfWeek(for: Date())
-        }
     }
     
     private func changeWeek(by value: Int) {
         currentWeekStart = calendar.date(byAdding: .weekOfYear, value: value, to: currentWeekStart) ?? currentWeekStart
-    }
-    
-    private func startOfWeek(for date: Date) -> Date {
-        let comps = calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: date)
-        return calendar.date(from: comps) ?? date
     }
 }
 
@@ -336,7 +320,6 @@ struct WeekView: View {
 struct DayScheduleView: View {
     let dayDate: Date
     @Binding var events: [Date: [String: (icon: String, title: String)]]
-    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
     
     private let calendar = Calendar.current
     private let dateFormatter: DateFormatter = {
@@ -506,7 +489,7 @@ struct MonthView: View {
 
 // MARK: - Events Full Page
 struct EventsFullPageView: View {
-    @Binding var upcomingEvents: [(date: Date, icon: String, title: String)]
+    @Binding var specialEvents: [(date: Date, icon: String, title: String)]
     
     private let dateFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -517,14 +500,14 @@ struct EventsFullPageView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
-                ForEach(upcomingEvents.indices, id: \.self) { idx in
+                ForEach(specialEvents.indices, id: \.self) { idx in
                     HStack {
-                        Text(upcomingEvents[idx].icon)
+                        Text(specialEvents[idx].icon)
                             .font(.largeTitle)
                         VStack(alignment: .leading) {
-                            Text(upcomingEvents[idx].title)
+                            Text(specialEvents[idx].title)
                                 .font(.headline)
-                            Text(dateFormatter.string(from: upcomingEvents[idx].date))
+                            Text(dateFormatter.string(from: specialEvents[idx].date))
                                 .font(.subheadline)
                                 .foregroundColor(.gray)
                         }
@@ -542,74 +525,85 @@ struct EventsFullPageView: View {
 
 // MARK: - Add Big Event View
 struct AddBigEventView: View {
-    var body: some View {
-        VStack {
-            Text("Add Big Event Page")
-                .font(.largeTitle)
-                .padding()
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Settings View
-struct SettingsView: View {
     @Environment(\.dismiss) var dismiss
+    @Binding var specialEvents: [(date: Date, icon: String, title: String)]
     
-    var body: some View {
-        VStack {
-            Text("Settings")
-                .font(.largeTitle)
-                .padding()
-            
-            Spacer()
-            
-            Button("Exit") {
-                dismiss()
-            }
-            .font(.title2)
-            .padding()
-            .background(Color.blue.opacity(0.2))
-            .cornerRadius(12)
-            
-            Spacer()
-        }
-    }
-}
-
-// MARK: - Icon Palette Click View
-struct IconPaletteClickView: View {
-    @Binding var selectedIcon: (icon: String, title: String)?
-    
-    let icons: [(String, String)] = [
-        ("🎓","School"),("📝","Study"),("🏃‍♂️","Exercise"),
-        ("🍎","Meal"),("💤","Sleep"),("🎉","Event")
-    ]
+    @State private var title = ""
+    @State private var startDate = Date()
     
     var body: some View {
         VStack(spacing: 20) {
-            ForEach(icons, id: \.0) { icon, title in
-                Button(action: { selectedIcon = (icon, title) }) {
-                    HStack {
-                        Text(icon)
-                            .font(.largeTitle)
-                        Text(title)
-                            .font(.headline)
-                    }
-                    .padding()
-                    .background(Color.gray.opacity(0.2))
-                    .cornerRadius(8)
+            Text("Add Special Event")
+                .font(.largeTitle)
+            
+            TextField("Event Title", text: $title)
+                .padding()
+                .background(Color.gray.opacity(0.1))
+                .cornerRadius(8)
+            
+            DatePicker("Date", selection: $startDate)
+                .padding()
+            
+            Button("Save") {
+                if !title.isEmpty {
+                    specialEvents.append((date: startDate, icon: "⭐️", title: title))
+                    dismiss()
                 }
             }
+            .padding()
+            .frame(maxWidth: .infinity)
+            .background(Color.blue)
+            .foregroundColor(.white)
+            .cornerRadius(12)
+            
             Spacer()
         }
         .padding()
     }
 }
 
-// MARK: - Preview
-struct MainScheduleView_Previews: PreviewProvider {
-    static var previews: some View {
-        MainScheduleView()
+// MARK: - Settings View
+struct SettingsView: View {
+    var body: some View {
+        VStack {
+            Text("Settings Page")
+                .font(.largeTitle)
+                .padding()
+            Text("Coming soon...")
+                .foregroundColor(.gray)
+        }
+    }
+}
+
+// MARK: - Icon Palette Click View (fixed to use Binding)
+struct IconPaletteClickView: View {
+    @Binding var selectedIcon: (icon: String, title: String)?
+    
+    private let options: [(String, String)] = [
+        ("🎂", "Birthday"),
+        ("🎉", "Party"),
+        ("🎓", "Graduation"),
+        ("🏖️", "Holiday"),
+        ("🛫", "Trip"),
+        ("❤️", "Anniversary")
+    ]
+    
+    var body: some View {
+        ScrollView(.vertical, showsIndicators: false) {
+            VStack(spacing: 20) {
+                ForEach(options, id: \.0) { option in
+                    VStack {
+                        Text(option.0)
+                            .font(.largeTitle)
+                            .onTapGesture {
+                                selectedIcon = (option.0, option.1)
+                            }
+                        Text(option.1)
+                            .font(.caption)
+                    }
+                }
+            }
+            .padding()
+        }
     }
 }
